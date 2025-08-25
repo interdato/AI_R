@@ -6,7 +6,7 @@ format:
     slide-number: true
     transition: slide
     toc: false
-    scrollable: true   # <- permite scroll vertical dentro de las slides
+    scrollable: true   # scroll vertical en cada slide
 editor: visual
 execute:
   echo: false
@@ -16,30 +16,30 @@ execute:
 
 ## 🚀 Contexto de negocio
 
-- En marketing B2B tenemos **miles de leads**.
-- El presupuesto y los equipos de ventas son **limitados**.
-- Pregunta clave: **¿A quién contactar para maximizar el retorno?**
+-   En marketing B2B tenemos **miles de leads**.
+-   El presupuesto y los equipos de ventas son **limitados**.
+-   Pregunta clave: **¿A quién contactar para maximizar el retorno?**
 
----
+------------------------------------------------------------------------
 
 ## 🎯 Objetivo
 
-- Estimar la **probabilidad de compra** por lead (IA).
-- Calcular **valor esperado (EV)** de contacto.
-- Seleccionar leads bajo **presupuesto** (prescriptivo).
-- Sugerir **Next-Best Action** por segmento/comportamiento.
+-   Estimar la **probabilidad de compra** por lead (IA).
+-   Calcular **valor esperado (EV)** de contacto.
+-   Seleccionar leads bajo **presupuesto** (prescriptivo).
+-   Sugerir **Next-Best Action** por segmento/comportamiento.
 
----
+------------------------------------------------------------------------
 
 ## 🧠 Enfoque de IA
 
-- Modelo **XGBoost (gradient boosting)** para probabilidad de compra.
-- Variables de comportamiento y atributos:
-  - Visitas web, emails abiertos, tiempo en sitio
-  - Demos solicitadas, CSAT
-  - Segmento, región, precio del plan
+-   Modelo **XGBoost (gradient boosting)** para probabilidad de compra.
+-   Variables de comportamiento y atributos:
+    -   Visitas web, emails abiertos, tiempo en sitio
+    -   Demos solicitadas, CSAT
+    -   Segmento, región, precio del plan
 
----
+------------------------------------------------------------------------
 
 ## 🔧 Setup (librerías y semilla)
 
@@ -52,17 +52,18 @@ suppressPackageStartupMessages({
   library(knitr)
   library(DT)       # tablas con scroll
   library(htmltools)
+  library(plotly)   # <- gráficos responsivos para móvil
 })
 
 set.seed(2025)
 
 # Mostrar versiones (contenido visible)
-pkgs <- c("tidyverse","pROC","xgboost","scales","knitr","DT")
+pkgs <- c("tidyverse","pROC","xgboost","scales","knitr","DT","plotly")
 vers <- vapply(pkgs, function(p) as.character(utils::packageVersion(p)), character(1))
 knitr::kable(tibble(Paquete = pkgs, Versión = vers), caption = "Paquetes cargados y versiones")
 ```
 
----
+------------------------------------------------------------------------
 
 ## 🧪 Datos sintéticos (B2B)
 
@@ -99,7 +100,7 @@ datos <- tibble(
 knitr::kable(head(datos, 6), caption = "Muestra de datos sintéticos")
 ```
 
----
+------------------------------------------------------------------------
 
 ## ✂️ Partición & matrices para XGBoost
 
@@ -135,7 +136,7 @@ tagList(
   DT::datatable(
     resumen_mm,
     rownames = FALSE,
-    options = list(dom = "t", paging = FALSE),
+    options = list(dom = "t", paging = FALSE, autoWidth = TRUE),
     class = "display compact"
   ),
   tags$h4("Columnas de la matriz de diseño (train)"),
@@ -145,8 +146,8 @@ tagList(
     options = list(
       dom = "t",
       paging = FALSE,
-      scrollY = "320px",  # <- scroll vertical interno
-      scrollX = TRUE,     # <- por si hay columnas extras en el futuro
+      scrollY = "320px",  # scroll vertical interno
+      scrollX = TRUE,     # scroll horizontal interno
       autoWidth = TRUE
     ),
     class = "display nowrap compact"
@@ -154,7 +155,7 @@ tagList(
 )
 ```
 
----
+------------------------------------------------------------------------
 
 ## 🏋️ Entrenamiento del modelo (XGBoost)
 
@@ -185,9 +186,9 @@ knitr::kable(tibble(`Mejor iteración` = mejor_iter, `AUC (eval)` = round(auc_ev
       caption = "Resumen del entrenamiento")
 ```
 
----
+------------------------------------------------------------------------
 
-## 📈 Curva ROC y AUC
+## 📈 Curva ROC y AUC (responsivo)
 
 ```{r}
 p_test <- predict(bst, dtest)
@@ -201,7 +202,7 @@ roc_df <- tibble(
   fpr = rev(1 - roc_obj$specificities)
 )
 
-ggplot(roc_df, aes(x = fpr, y = tpr)) +
+p_roc <- ggplot(roc_df, aes(x = fpr, y = tpr)) +
   geom_line(linewidth = 1) +
   geom_abline(linetype = 2) +
   labs(
@@ -209,11 +210,15 @@ ggplot(roc_df, aes(x = fpr, y = tpr)) +
     x = "Falsos positivos (1 - Especificidad)",
     y = "Verdaderos positivos (Sensibilidad)"
   )
+
+# Convertir a plotly responsivo
+plotly::ggplotly(p_roc, tooltip = c("x","y")) |>
+  plotly::config(displayModeBar = FALSE)
 ```
 
----
+------------------------------------------------------------------------
 
-## ⚖️ Calibración (deciles)
+## ⚖️ Calibración (deciles, responsivo)
 
 ```{r}
 cal_df <- tibble(compra = test$compra, p = p_test) |>
@@ -225,7 +230,7 @@ cal_df <- tibble(compra = test$compra, p = p_test) |>
     .groups   = "drop"
   )
 
-ggplot(cal_df, aes(x = p_media, y = tasa_real)) +
+p_cal <- ggplot(cal_df, aes(x = p_media, y = tasa_real)) +
   geom_point(size = 2) + geom_line() +
   geom_abline(linetype = 2) +
   scale_x_continuous(labels = percent_format(accuracy = 1)) +
@@ -235,11 +240,14 @@ ggplot(cal_df, aes(x = p_media, y = tasa_real)) +
     x = "Probabilidad media predicha",
     y = "Tasa real de compra"
   )
+
+plotly::ggplotly(p_cal, tooltip = c("x","y")) |>
+  plotly::config(displayModeBar = FALSE)
 ```
 
----
+------------------------------------------------------------------------
 
-## 📈 Ganancias acumuladas (Lift)
+## 📈 Ganancias acumuladas (Lift, responsivo)
 
 ```{r}
 lift_df <- tibble(compra = test$compra, p = p_test) |>
@@ -251,7 +259,7 @@ lift_df <- tibble(compra = test$compra, p = p_test) |>
   ) |>
   reframe(pct_pobl, tasa_acum)
 
-ggplot(lift_df, aes(x = pct_pobl, y = tasa_acum)) +
+p_lift <- ggplot(lift_df, aes(x = pct_pobl, y = tasa_acum)) +
   geom_line(linewidth = 1) +
   geom_abline(slope = 1, intercept = 0, linetype = 2) +
   scale_x_continuous(labels = percent_format(accuracy = 1)) +
@@ -261,9 +269,12 @@ ggplot(lift_df, aes(x = pct_pobl, y = tasa_acum)) +
     x = "% de población contactada (orden modelo)",
     y = "% de compras capturadas"
   )
+
+plotly::ggplotly(p_lift, tooltip = c("x","y")) |>
+  plotly::config(displayModeBar = FALSE)
 ```
 
----
+------------------------------------------------------------------------
 
 ## 💰 Capa prescriptiva (regla de negocio)
 
@@ -298,7 +309,7 @@ resumen <- tibble(
 knitr::kable(resumen, caption = "Resumen prescriptivo (contactos, costo, beneficio esperado y EV)")
 ```
 
----
+------------------------------------------------------------------------
 
 ## 👤 Top 20 leads y Siguiente Mejor Acción
 
@@ -334,24 +345,24 @@ DT::datatable(
 )
 ```
 
----
+------------------------------------------------------------------------
 
 ## 🧭 Storytelling de valor
 
-1. **Problema**: demasiados leads, recursos limitados.  
-2. **IA predictiva**: XGBoost estima probabilidad de compra por lead.  
-3. **Prescriptivo**: con costo, beneficio y presupuesto, maximizamos **EV**.  
-4. **Siguiente Mejor Acción**: táctica recomendada por perfil/comportamiento.  
-5. **Impacto**: mayor ROI, decisiones basadas en datos.
+1.  **Problema**: demasiados leads, recursos limitados.\
+2.  **IA predictiva**: XGBoost estima probabilidad de compra por lead.\
+3.  **Prescriptivo**: con costo, beneficio y presupuesto, maximizamos **EV**.\
+4.  **Siguiente Mejor Acción**: táctica recomendada por perfil/comportamiento.\
+5.  **Impacto**: mayor ROI, decisiones basadas en datos.
 
----
+------------------------------------------------------------------------
 
 ## ✅ Conclusiones
 
-- La **IA en negocios** no solo predice: también **prescribe**.  
-- Beneficios:
-  - Mejor **priorización de leads**.
-  - **Eficiencia** de presupuesto.
-  - **Mayor conversión** y retorno.
+-   La **IA en negocios** no solo predice: también **prescribe**.\
+-   Beneficios:
+    -   Mejor **priorización de leads**.
+    -   **Eficiencia** de presupuesto.
+    -   **Mayor conversión** y retorno.
 
 **De los datos → a la acción → al impacto.**
