@@ -52,7 +52,7 @@ suppressPackageStartupMessages({
   library(knitr)
   library(DT)       # tablas con scroll
   library(htmltools)
-  library(plotly)   # <- gráficos responsivos para móvil
+  library(plotly)   # gráficos que se ajustan mejor en móvil
 })
 
 set.seed(2025)
@@ -81,7 +81,6 @@ datos <- tibble(
   region            = factor(sample(c("NA","EU","APAC","LATAM"), n, TRUE))
 ) |>
   mutate(
-    # Función oculta para simular probabilidad real de compra
     lp = -2.0 +
          0.20 * visitas_web_30 +
          0.25 * emails_abiertos +
@@ -121,7 +120,7 @@ y_test  <- as.numeric(test$compra == "si")
 dtrain <- xgb.DMatrix(data = X_train, label = y_train)
 dtest  <- xgb.DMatrix(data = X_test,  label = y_test)
 
-# Resúmenes visibles con scroll
+# Resúmenes visibles
 resumen_mm <- tibble(
   Conjunto = c("Train","Test"),
   Filas    = c(nrow(X_train), nrow(X_test)),
@@ -130,7 +129,6 @@ resumen_mm <- tibble(
 
 primeras_cols <- tibble(Columna = colnames(X_train))
 
-# Render de tablas con DT y scroll
 tagList(
   tags$h4("Dimensiones de matrices (OHE)"),
   DT::datatable(
@@ -146,8 +144,8 @@ tagList(
     options = list(
       dom = "t",
       paging = FALSE,
-      scrollY = "320px",  # scroll vertical interno
-      scrollX = TRUE,     # scroll horizontal interno
+      scrollY = "320px",
+      scrollX = TRUE,
       autoWidth = TRUE
     ),
     class = "display nowrap compact"
@@ -188,7 +186,7 @@ knitr::kable(tibble(`Mejor iteración` = mejor_iter, `AUC (eval)` = round(auc_ev
 
 ------------------------------------------------------------------------
 
-## 📈 Curva ROC y AUC (responsivo)
+## 📈 Curva ROC y AUC
 
 ```{r}
 p_test <- predict(bst, dtest)
@@ -211,14 +209,13 @@ p_roc <- ggplot(roc_df, aes(x = fpr, y = tpr)) +
     y = "Verdaderos positivos (Sensibilidad)"
   )
 
-# Convertir a plotly responsivo
 plotly::ggplotly(p_roc, tooltip = c("x","y")) |>
   plotly::config(displayModeBar = FALSE)
 ```
 
 ------------------------------------------------------------------------
 
-## ⚖️ Calibración (deciles, responsivo)
+## ⚖️ Calibración (deciles)
 
 ```{r}
 cal_df <- tibble(compra = test$compra, p = p_test) |>
@@ -247,7 +244,7 @@ plotly::ggplotly(p_cal, tooltip = c("x","y")) |>
 
 ------------------------------------------------------------------------
 
-## 📈 Ganancias acumuladas (Lift, responsivo)
+## 📈 Ganancias acumuladas (Lift)
 
 ```{r}
 lift_df <- tibble(compra = test$compra, p = p_test) |>
@@ -329,19 +326,25 @@ top20 <- presc |>
     )
   )
 
-DT::datatable(
-  top20,
-  rownames = FALSE,
-  options = list(
-    scrollY  = "420px",
-    scrollX  = TRUE,
-    paging   = FALSE,
-    dom      = "t",
-    autoWidth = TRUE
-  ),
-  class = "display nowrap compact",
-  caption = htmltools::tags$caption(style = "caption-side: top; text-align: left;",
-                                    "Top 20 leads priorizados y acción sugerida")
+# Contenedor que siempre hace scroll en móvil
+htmltools::div(
+  style = "max-height:65vh; overflow:auto; width:100%;",
+  DT::datatable(
+    top20,
+    rownames = FALSE,
+    options = list(
+      scrollY      = "55vh",
+      scrollX      = TRUE,
+      scrollCollapse = TRUE,
+      paging       = FALSE,
+      dom          = "t",
+      autoWidth    = TRUE,
+      deferRender  = TRUE
+    ),
+    class = "display nowrap compact",
+    caption = htmltools::tags$caption(style = "caption-side: top; text-align: left;",
+                                      "Top 20 leads priorizados y acción sugerida")
+  )
 )
 ```
 
